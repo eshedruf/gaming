@@ -1,82 +1,76 @@
-import os
-import socket
-import threading
-import time
-import multiprocessing
 import hashlib
-from threading import Thread
-
-
-# value: shared memory between processes
-# current: gets info about the current process
+import multiprocessing
+import time
 
 class Client:
-    def __init__(self):
-        self.start_time = time.time()
-        self.my_socket = socket.socket()
-        self.num_processes = os.cpu_count()
-        self.final_md5 = "ce039324e5a57749db69538be0252854"
-        self.start = 1_000_010_000_000
-        self.end = 1_000_020_000_000
-        self.found = False
-        self.found_number = -1
-        # self.my_socket.connect(("127.0.0.1", 8820))
-        # self.processes
-        # self.name = input("enter name: ")
-        # self.password = input("enter password: ")
-        # self.age = input("enter age: ")
+    def __init__(self, target_md5, range_start, range_end):
+        """
+        Initializes the Client with the target MD5 hash and the search range.
+        """
+        self.target_md5 = target_md5
+        self.range_start = range_start
+        self.range_end = range_end
+        self.cpu_count = multiprocessing.cpu_count()
 
-    def number_to_md5(self, number):
-        return hashlib.md5(str(number).encode()).hexdigest()
-
-    def run(self):
-        print("client start")
-        print("client connect to server")
-        client_num = int(self.my_socket.recv(1024).decode())
-
-    def compute(self):
-        with multiprocessing.Pool(processes=self.num_processes) as pool:
-            step = (self.end - self.start) // self.num_processes
-            # adds to the last tuple the rest that is left over (because the step may be rounded down to be an integer)
-            ranges = [(self.start + i * step, self.start + (i + 1) * step) if i < self.num_processes - 1
-                      else (self.start + i * step, self.end)
-                      for i in range(self.num_processes)]
-            results = pool.starmap(self.compute_single_process, ranges)
-
-            for is_correct, num in results:
-                if is_correct:
-                    self.found = True
-                    self.found_number = num
-                    break
-        self.send()
-
-    # includes start excludes end
-    def compute_single_process(self, start, end):
-        for i in range(start, end):
-            md5 = hashlib.md5(str(i).encode()).hexdigest()
-            if md5 == self.final_md5:
-                return True, i
+    @staticmethod
+    def compute_md5_and_check(start, end, target_hash):
+        """
+        Computes MD5 hashes for numbers in the range [start, end).
+        Returns (True, number) if target_hash is found, otherwise (False, -1).
+        """
+        for num in range(start, end):
+            num_hash = hashlib.md5(str(num).encode()).hexdigest()
+            if num_hash == target_hash:
+                return True, num
         return False, -1
 
-    def send(self):
-        if self.found:
-            message = ("the md5 hash is: " + str(self.found_number))
-        else:
-            #  message = found does_want_another_range
-            message = ("0" + "1")  # for now always want another range. in the future the user will choose
+    def find_md5_hash_in_range(self):
+        """
+        Splits the range across available CPU cores and checks for the target MD5 hash.
+        """
+        step = (self.range_end - self.range_start) // self.cpu_count
+        ranges = [
+            (self.range_start + i * step, self.range_start + (i + 1) * step)
+            for i in range(self.cpu_count)
+        ]
+        # Ensure the last range ends at 'self.range_end'
+        ranges[-1] = (ranges[-1][0], self.range_end)
 
-        print(message)
+        # Use multiprocessing pool to parallelize the work
+        with multiprocessing.Pool(self.cpu_count) as pool:
+            results = pool.starmap(
+                self.compute_md5_and_check, [(r[0], r[1], self.target_md5) for r in ranges]
+            )
+
+        # Check results for a successful match
+        for is_found, num in results:
+            if is_found:
+                return True, num
+        return False, -1
+
+    def run(self):
+        """
+        Runs the search process and prints the result with the elapsed time.
+        """
+        print("Starting search...")
+        start_time = time.time()
+
+        found, number = self.find_md5_hash_in_range()
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        if found:
+            print(f"Hash found! The number is: {number}")
+        else:
+            print("Hash not found in the range.")
+        print(f"Search completed in {elapsed_time:.2f} seconds.")
 
 
 if __name__ == "__main__":
-    c1 = Client()
-    start_time = time.time()
-    # Input the range and the MD5 hash
+    target_md5 = input("Enter the target MD5 hash: ").strip()
+    range_start = 1_000_000_000_000
+    range_end = range_start + 5_000_000
 
-    # Find the matching number
-    c1.compute()
-
-    elapsed_time = time.time() - c1.start_time
-    print(f"Time elapsed since the code started: {elapsed_time:.2f} seconds")
-
-    # c1.run()
+    client = Client(target_md5, range_start, range_end)
+    client.run()
