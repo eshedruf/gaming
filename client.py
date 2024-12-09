@@ -13,16 +13,11 @@ from threading import Thread
 class Client:
     def __init__(self):
         self.start_time = time.time()
-        self.core_num = os.cpu_count()
-        self.range_length = 24
         self.my_socket = socket.socket()
-        self.num_processes = self.core_num
-        self.target_md5 = "ce039324e5a57749db69538be0252854"
-        self.len = 10
+        self.num_processes = os.cpu_count()
+        self.final_md5 = "ce039324e5a57749db69538be0252854"
         self.start = 1_000_010_000_000
         self.end = 1_000_020_000_000
-        self.step = (self.end - self.start) // self.num_processes
-        self.final_md5 = self.target_md5
         self.found = False
         self.found_number = -1
         # self.my_socket.connect(("127.0.0.1", 8820))
@@ -40,7 +35,6 @@ class Client:
         client_num = int(self.my_socket.recv(1024).decode())
 
     def compute(self):
-        self.stop_computing = False
         with multiprocessing.Pool(processes=self.num_processes) as pool:
             step = (self.end - self.start) // self.num_processes
             # adds to the last tuple the rest that is left over (because the step may be rounded down to be an integer)
@@ -51,7 +45,6 @@ class Client:
 
             for is_correct, num in results:
                 if is_correct:
-                    print("sjghsnlfhs")
                     self.found = True
                     self.found_number = num
                     break
@@ -63,12 +56,11 @@ class Client:
             md5 = hashlib.md5(str(i).encode()).hexdigest()
             if md5 == self.final_md5:
                 return True, i
-
         return False, -1
 
     def send(self):
         if self.found:
-            message = ("0 " + str(self.found_number))
+            message = ("the md5 hash is: " + str(self.found_number))
         else:
             #  message = found does_want_another_range
             message = ("0" + "1")  # for now always want another range. in the future the user will choose
