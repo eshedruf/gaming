@@ -13,24 +13,14 @@ class Server:
         self.HOPS = 10 ** 6
         self.MINIMUM_RANGE = 10 ** 9
         self.MAXIMUM_RANGE = 10 ** 10
-        self.LOGIN = "LOGIN"
-        self.SIGNUP = "SIGNUP"
-        self.COMMANDS = [self.LOGIN, self.SIGNUP]
         self.INVALID_COMMANDO = "Your command is invalid, try again."
-        self.FOUND = "FOUND"
-        self.NOT_FOUND = "NOT_FOUND"
 
     def handle_client(self, client_socket, server_socket):  # Takes client socket as argument.
         """Handles a single client connection."""
         while True:
-            client_msg_length = client_socket.recv(4)
-            msg = client_socket.recv(client_msg_length)
-            command = msg.split(Protocol().SEPERATOR)[1]
-            username = msg.split(Protocol().SEPERATOR)[2]
-            password = msg.split(Protocol().SEPERATOR)[3]
-            age = msg.split(Protocol().SEPERATOR)[4]
-            print(username, password, age)
-            if self.check_valid_command(command):
+            valid, commando, msg_list = Protocol().get_msg(server_socket)
+
+            if Protocol().check_cmd(commando) and valid:
                 valid = self.handle_response(username, password, age, command)
                 if not valid:
                     continue
@@ -39,9 +29,9 @@ class Server:
                 continue
             self.handle_client_range(client_socket, username)
             status_length = client_socket.recv(4)
-            status_msg = client_socket.recv(status_length)
-            status = status_msg.split(Protocol().SEPERATOR)[1]
+            status = client_socket.recv(status_length)
             if status == self.FOUND:
+                ... # take the
                 for c in self.clients:
                     c.close()
                 server_socket.stop()
@@ -50,12 +40,19 @@ class Server:
             if status == self.NOT_FOUND:
                 self.handle_client_range(client_socket, username)
 
-    def handle_response(self, client_socket, name, password, age, command):
+    def handle_response(self, client_socket, command, msg_list):
         valid, message = None, None
-        if command == self.LOGIN:
-            valid, message = self.client_log_in_if_possible(name, password)
-        if command == self.SIGNUP:
-            valid, message = self.client_sign_up_if_possible(name, password, age)
+        if command == Protocol().CMDS[0]:
+            username = msg_list[0]
+            password = msg_list[1]
+            age = msg_list[2]
+            valid, message = self.client_sign_up_if_possible(username, password, age)
+        if command == Protocol().CMDS[1]:
+            username = msg_list[0]
+            password = msg_list[1]
+            valid, message = self.client_log_in_if_possible(username, password)
+        if command == Protocol().CMDS[3]: # check
+            
         if valid:
             return valid
         else:
@@ -78,7 +75,7 @@ class Server:
                     proc[1] = (min_range, max_range)
         else:
             self.list_of_proc.append([(username, client_socket), (min_range, max_range)])
-        md5_range_msg = str(min_range) + Protocol().SEPERATOR + str(max_range)
+        md5_range_msg = str(22) + str(min_range) + Protocol().SEPERATOR + str(max_range)
         client_socket.send((md5_range_msg.encode()))
 
     def is_client_in_list(self, username, client_socket):
@@ -87,11 +84,6 @@ class Server:
                 return True
         else:
             return False
-
-    def check_valid_command(self, command):
-        if command in self.COMMANDS:
-            return True
-        return False
 
     def client_log_in_if_possible(self, username1, password1):
         conn = sqlite3.connect('my_database.db')
