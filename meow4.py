@@ -18,13 +18,12 @@ def client_sign_up_if_possible(username1, password1, age1):
     rows = cursor.fetchall()
 
     """
-    collumn 0 - id
-    collumn 1 - username
-    collumn 2 - password
-    collumn 3 - age
+    collumn 0 - username
+    collumn 1 - password
+    collumn 2 - age
     """
     for row in rows:
-        if username1 == row[1]: #if username exists
+        if username1 == row[0]: #if username exists
             conn.close()
             return False, "failed to sign up, username exists"
     cursor.execute('''
@@ -44,14 +43,13 @@ def client_log_in_if_possible(username1, password1):
     cursor.execute('SELECT * FROM users')
     rows = cursor.fetchall()
     """
-    collumn 0 - id
-    collumn 1 - username
-    collumn 2 - password
-    collumn 3 - age
+    collumn 0 - username
+    collumn 1 - password
+    collumn 2 - age
     """
     users = []
     for row in rows:
-        users.append(row[1])
+        users.append(row[0])
     if username1 not in users:  # if username doesn't exist
         conn.close()
         return False, "failed to log in, username doesn't exist"
@@ -76,10 +74,17 @@ def client_log_in_if_possible(username1, password1):
 
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
+    username TEXT PRIMARY KEY NOT NULL,
     password TEXT NOT NULL,
     age INTEGER NOT NULL
+)
+''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS mission (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_of_range INTEGER NOT NULL,
+    end_of_range INTEGER NOT NULL
 )
 ''')
 
@@ -87,7 +92,7 @@ CREATE TABLE IF NOT EXISTS users (
 """
 cursor.execute('''
 INSERT INTO users (username, password, age)
-VALUES ('eshed', '1234', 18)
+VALUES ('esh', '1234', 18)
 ''')
 """
 
@@ -112,13 +117,12 @@ rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
 
 # printing collunms
 """
-collumn 0 - id
-collumn 1 - username
-collumn 2 - password
-collumn 3 - age
+collumn 0 - username
+collumn 1 - password
+collumn 2 - age
 """
 for row in rows:
-    print(row[1])
+    print(row[0])
 
 # printing a row based on the username
 cursor.execute("SELECT * FROM users WHERE username == 'omer'")
