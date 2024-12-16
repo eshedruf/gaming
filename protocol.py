@@ -17,13 +17,16 @@ class Protocol:
             msg = cmd
             for part in msg_parts:
                 msg += self.SEPERATOR + str(part)
-            return str(len(msg)) + msg
+            return (str(len(msg)).zfill(self.LENGTH_FIELD_SIZE) + msg).encode()
         else:
             raise FileExistsError
 
     def get_msg(self, socket_gaming):
         try:
-            length = int(socket_gaming.recv(self.LENGTH_FIELD_SIZE).decode())
+            data = socket_gaming.recv(self.LENGTH_FIELD_SIZE).decode()
+            print(data)
+            length = int(data)
+            print(length)
             data_str = socket_gaming.recv(length)
             while len(data_str) < length:
                 data_str += socket_gaming.recv(length - len(data_str))
