@@ -10,7 +10,7 @@ class Client:
         Initializes the Client with the target MD5 hash and the search range.
         """
         self.protocol = protocol.Protocol()
-        self.server_ip = "127.0.0.1"
+        self.server_ip = "10.51.101.49"
         self.server_port = 8820
         self.target_md5 = target_md5
         self.range_start = range_start
@@ -32,11 +32,16 @@ class Client:
                 bool = False
         username = input("Enter username: ")
         password = input("Enter password: ")
-        if sign_log == "sign in":
-            self.protocol.create_msg("SIGNUP", [username, password])
-        elif sign_log == "log in":
-            self.protocol.create_msg("LOGIN", [username, password])
+        if sign_log == "sign_in":
+            age = input("Enter age: ")
+            print("entered details")
+            self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
+            print()
+        elif sign_log == "log_in":
+            self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
+        print("waiting for md5")
         self.target_md5 = self.protocol.get_msg(self.client_socket) # should get give md5
+        print("got md5: " + str(self.target_md5))
 
     def compute_md5_and_check(self, start, end, target_hash):
         """
@@ -118,9 +123,9 @@ class Client:
 
     def send(self, found):
         if found == -1:
-            msg = self.protocol.create_msg("CHECK", ["NOT_FOUND", found])
+            msg = self.protocol.create_msg("CHECK", [self.protocol.NOT_FOUND, found])
         else:
-            msg = self.protocol.create_msg("CHECK", ["FOUND", found])
+            msg = self.protocol.create_msg("CHECK", [self.protocol.FOUND, found])
         self.client_socket.send(msg)
 
 
@@ -131,5 +136,5 @@ if __name__ == "__main__":
     range_end = range_start + 10_000_000
 
     client = Client(target_md5, range_start, range_end)
-    client.run()
+    client.actual_run()
     print(client.number_to_md5(1_000_005_000_000))
