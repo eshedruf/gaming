@@ -68,8 +68,17 @@ def client_log_in_if_possible(username1, password1):
     conn.close()
     return False, "incorrect password"
 
-
-
+def add_range_to_mission(clientnum, start_of_range, hop):
+    conn = sqlite3.connect('my_database.db')
+    # Create a cursor object to interact with the database
+    cursor = conn.cursor()
+    end_of_range = start_of_range + hop - 1
+    cursor.execute('''
+    INSERT INTO mission (client, start_of_range, end_of_range, status)
+    VALUES (?, ?, ?, 'PENDING')
+    ''', (clientnum, start_of_range, end_of_range))
+    conn.commit()
+    conn.close()
 # Example: Create a table
 
 cursor.execute('''
@@ -83,8 +92,10 @@ CREATE TABLE IF NOT EXISTS users (
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS mission (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client STRING NOT NULL,
     start_of_range INTEGER NOT NULL,
-    end_of_range INTEGER NOT NULL
+    end_of_range INTEGER NOT NULL,
+    status STRING NOT NULL
 )
 ''')
 
@@ -92,7 +103,7 @@ CREATE TABLE IF NOT EXISTS mission (
 """
 cursor.execute('''
 INSERT INTO users (username, password, age)
-VALUES ('esh', '1234', 18)
+VALUES ('omer', '12345', 20)
 ''')
 """
 
@@ -102,6 +113,13 @@ cursor.execute('''
 DELETE FROM users WHERE username = "noa"
 ''')
 """
+
+"""
+cursor.execute('''
+DELETE FROM mission WHERE client = "c1"
+''')
+"""
+
 # Commit changes and close the connection
 conn.commit()
 
@@ -135,6 +153,11 @@ if row:
     print(row)
 else:
     print("No data found for the given username")
-conn.close()
 
+cursor.execute('SELECT * FROM mission')
+rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
+for row in rows:
+    print(row)
+conn.close()
+#add_range_to_mission('c1', 10 ** 9, 10 ** 7)
 print("Database connection and operations completed successfully")
