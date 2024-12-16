@@ -3,6 +3,7 @@ import sqlite3
 import sys
 from protocol import Protocol
 from threading import Thread
+import hashlib
 
 
 class Server:
@@ -10,53 +11,62 @@ class Server:
         self.clients = set()  # do not duplicate the clients
         self.list_of_proc = []  # [[(username, client), (min,max)],...]
         self.temp_ranges = []
-        self.HOPS = 10 ** 6
+        self.HOPS = 10 ** 7
         self.MINIMUM_RANGE = 10 ** 9
         self.MAXIMUM_RANGE = 10 ** 10
         self.INVALID_COMMANDO = "Your command is invalid, try again."
+        self.protocol = Protocol()
 
     def handle_client(self, client_socket, server_socket):  # Takes client socket as argument.
         """Handles a single client connection."""
         while True:
-            valid, commando, msg_list = Protocol().get_msg(server_socket)
-
-            if Protocol().check_cmd(commando) and valid:
-                valid = self.handle_response(username, password, age, command)
+            valid, commando, msg_list = self.protocol.get_msg(client_socket)
+            print(msg_list, commando)
+            if self.protocol.check_cmd(commando) and valid:
+                valid = self.handle_response(client_socket, commando, msg_list, server_socket)
                 if not valid:
                     continue
             else:
                 client_socket.send(self.INVALID_COMMANDO.encode())
                 continue
-            self.handle_client_range(client_socket, username)
-            status_length = client_socket.recv(4)
-            status = client_socket.recv(status_length)
-            if status == self.FOUND:
-                ... # take the
-                for c in self.clients:
-                    c.close()
-                server_socket.stop()
-                sys.exit()
 
-            if status == self.NOT_FOUND:
-                self.handle_client_range(client_socket, username)
-
-    def handle_response(self, client_socket, command, msg_list):
+    def handle_response(self, client_socket, command, msg_list, server_socket):
         valid, message = None, None
-        if command == Protocol().CMDS[0]:
+        if command == self.protocol.CMDS[0]:  # signup
             username = msg_list[0]
             password = msg_list[1]
             age = msg_list[2]
             valid, message = self.client_sign_up_if_possible(username, password, age)
-        if command == Protocol().CMDS[1]:
+            print(message)
+            num = hashlib.md5(str(1_234_567_890).encode()).hexdigest()
+            msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
+            client_socket.send(msg_md5)
+            self.handle_client_range(client_socket, username)
+
+        if command == self.protocol.CMDS[1]:  # login
             username = msg_list[0]
             password = msg_list[1]
             valid, message = self.client_log_in_if_possible(username, password)
-        if command == Protocol().CMDS[3]: # check
-            
+            print(message)
+            num = hashlib.md5(str(1_234_567_890).encode()).hexdigest()
+            msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
+            client_socket.send(msg_md5)
+            self.handle_client_range(client_socket, username)
+
+        if command == self.protocol.CMDS[3]:  # check
+            status = msg_list[0]
+            number = msg_list[1]
+            if status == self.protocol.FOUND:
+                print("The number: " + number)
+                for c in self.clients:
+                    c.close()
+                server_socket.stop()
+                sys.exit()
+            if status == self.protocol.NOT_FOUND and number == -1:
+                self.handle_client_range(client_socket, self.get_username_of_client(client_socket))
+
         if valid:
             return valid
-        else:
-            client_socket.send((str(len(message)) + Protocol().SEPERATOR + message).encode())
 
     def pick_biggest_max_range(self):
         maximums = []
@@ -65,6 +75,12 @@ class Server:
         for i in self.list_of_proc:
             maximums.append(self.list_of_proc[i][1][1])
         return max(maximums)
+
+    def get_username_of_client(self, client_socket):
+        for proc in self.list_of_proc:
+            for tuples in proc:
+                if client_socket in tuples:
+                    return tuples[1]
 
     def handle_client_range(self, client_socket, username):  # without handling disconnections...yet
         min_range = self.pick_biggest_max_range()
@@ -75,8 +91,8 @@ class Server:
                     proc[1] = (min_range, max_range)
         else:
             self.list_of_proc.append([(username, client_socket), (min_range, max_range)])
-        md5_range_msg = str(22) + str(min_range) + Protocol().SEPERATOR + str(max_range)
-        client_socket.send((md5_range_msg.encode()))
+        range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
+        client_socket.send(range_msg)
 
     def is_client_in_list(self, username, client_socket):
         for proc in self.list_of_proc:
@@ -154,8 +170,6 @@ class Server:
             (client_socket, client_address) = server_socket.accept()
             print("New client connect")
             self.clients.add(client_socket)
-            client_counter = len(self.clients)
-            client_socket.send(str(client_counter).encode())
             a = Thread(target=self.handle_client, args=(client_socket, server_socket))
             a.start()
 
