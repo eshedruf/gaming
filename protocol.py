@@ -6,6 +6,8 @@ class Protocol:
         self.SEPERATOR = "\r\n"
         self.CMDS = ["SIGNUP", "LOGIN", "STOP", "CHECK", "GIVE_RANGE", "GIVE_MD5"]
         self.LENGTH_FIELD_SIZE = 4
+        self.FOUND = "FOUND"
+        self.NOT_FOUND = "NOT_FOUND"
 
     def check_cmd(self, cmd):
         return cmd in self.CMDS
@@ -14,7 +16,7 @@ class Protocol:
         if self.check_cmd(cmd):
             msg = cmd
             for part in msg_parts:
-                msg += self.SEPERATOR + part
+                msg += self.SEPERATOR + str(part)
             return str(len(msg)) + msg
         else:
             raise FileExistsError
