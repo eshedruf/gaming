@@ -3,20 +3,22 @@ import multiprocessing
 import protocol
 import socket
 import time
+from threading import Thread
 
 class Client:
-    def __init__(self, target_md5, range_start, range_end):
+    def __init__(self):
         """
         Initializes the Client with the target MD5 hash and the search range.
         """
         self.protocol = protocol.Protocol()
         self.server_ip = "10.51.101.49"
         self.server_port = 8820
-        self.target_md5 = target_md5
-        self.range_start = range_start
-        self.range_end = range_end
+        self.target_md5 = "g"
+        self.range_start = 3
+        self.range_end = 6
         self.cpu_count = multiprocessing.cpu_count()
         self.client_socket = socket.socket()
+        self.finish = False
 
 
     def number_to_md5(self, num):
@@ -24,6 +26,7 @@ class Client:
         return num_hash
 
     def connect(self):
+        print("client connecting to server...")
         self.client_socket.connect((self.server_ip, self.server_port))
         bool = True
         while bool:
@@ -36,11 +39,11 @@ class Client:
             age = input("Enter age: ")
             print("entered details")
             self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-            print()
         elif sign_log == "log_in":
             self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
         print("waiting for md5")
-        self.target_md5 = self.protocol.get_msg(self.client_socket) # should get give md5
+        md5 = self.protocol.get_msg(self.client_socket)[2] # should get give md5
+        self.target_md5 = str(md5[0])
         print("got md5: " + str(self.target_md5))
 
     def compute_md5_and_check(self, start, end, target_hash):
@@ -75,6 +78,7 @@ class Client:
         # Check results for a successful match
         for is_found, num in results:
             if is_found:
+                self.finish = True
                 return True, num
         return False, -1
 
@@ -101,12 +105,14 @@ class Client:
         Runs the search process and prints the result with the elapsed time.
         """
         print("Starting search...")
-        start_time = time.time()
 
-        self.connect()
-        data = self.protocol.get_msg(self.client_socket) # sohuld get give range
-        self.range_start = data[0]
-        self.range_end = data[1]
+
+        #self.connect()
+        data = self.protocol.get_msg(self.client_socket)[2] # should get give range
+        start_time = time.time()
+        print(str(data))
+        self.range_start = int(data[0])
+        self.range_end = int(data[1])
 
         found, number = self.find_md5_hash_in_range()
 
@@ -131,10 +137,9 @@ class Client:
 
 
 if __name__ == "__main__":
-    target_md5 = input("Enter the target MD5 hash: ")
-    range_start = 1_000_000_000_000
-    range_end = range_start + 10_000_000
-
-    client = Client(target_md5, range_start, range_end)
-    client.actual_run()
-    print(client.number_to_md5(1_000_005_000_000))
+    client = Client()
+    #client.actual_run()
+    client.connect()
+    while client.finish == False:
+        c = Thread(target = client.actual_run())
+        print(client.number_to_md5(1_001_000_000))
