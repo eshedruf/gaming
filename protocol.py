@@ -24,15 +24,13 @@ class Protocol:
     def get_msg(self, socket_gaming):
         try:
             data = socket_gaming.recv(self.LENGTH_FIELD_SIZE).decode()
-            print(data)
             length = int(data)
-            print(length)
             data_str = socket_gaming.recv(length)
             while len(data_str) < length:
                 data_str += socket_gaming.recv(length - len(data_str))
             msg = data_str.decode()
             command = msg.split(self.SEPERATOR)[0]
-            lst = [part for part in msg[len(command):len(msg)].split(self.SEPERATOR)][::2]
+            lst = msg.split(self.SEPERATOR)[1::]
             return True, command, lst
         except ValueError:
             return False, "", ""
