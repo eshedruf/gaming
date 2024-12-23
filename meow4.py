@@ -68,37 +68,44 @@ def client_log_in_if_possible(username1, password1):
     conn.close()
     return False, "incorrect password"
 
-def add_range_to_mission(clientnum, start_of_range, hop):
+def add_range_to_mission(username1, start_of_range, hop):
     conn = sqlite3.connect('my_database.db')
     # Create a cursor object to interact with the database
     cursor = conn.cursor()
     end_of_range = start_of_range + hop - 1
+    print(username1, start_of_range)
     cursor.execute('''
-    INSERT INTO mission (client, start_of_range, end_of_range, status)
+    INSERT INTO mission (username, start_of_range, end_of_range, status)
     VALUES (?, ?, ?, 'PENDING')
-    ''', (clientnum, start_of_range, end_of_range))
+    ''', (username1, start_of_range, end_of_range))
     conn.commit()
     conn.close()
 # Example: Create a table
-def update_scaned_range(clientnum, status):
+def update_scaned_range(username1, status):
     conn = sqlite3.connect('my_database.db')
     # Create a cursor object to interact with the database
     cursor = conn.cursor()
-    cursor.execute("""UPDATE mission SET status = ? WHERE client = ? AND status = 'PENDING'""", (status, clientnum))
+    cursor.execute("""UPDATE mission SET status = ? WHERE username = ? AND status = 'PENDING'""", (status, username1))
     conn.commit()
     conn.close()
 
 #return start and end of range in a tuple or None if num was found, status = None if client just loged in
-def give_new_range_to_client(clientnum, hop, status = None):
+def give_new_range_to_client(username1, hop, status = None):
     conn = sqlite3.connect('my_database.db')
     # Create a cursor object to interact with the database
     cursor = conn.cursor()
 
     if status != None:
-        update_scaned_range(clientnum, status)
+        update_scaned_range(username1, status)
 
     cursor.execute('SELECT * FROM mission')
     rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
+    start_of_range = None
+    if rows == []:  # if mission table is empty, start from 10 ** 9
+        start_of_range = 10 ** 9
+    else:
+        start_of_range = rows[-1][3] + 1
+
     for row in rows:
         if row[4] == 'YES': #if status == 'YES'
             conn.commit()
@@ -106,17 +113,17 @@ def give_new_range_to_client(clientnum, hop, status = None):
             return None
     for row in rows:
         if row[4] == 'CRASHED': #if status == 'CRASHED'
-            cursor.execute("""UPDATE mission SET client = ?, status = 'PENDING' WHERE status = 'CRASHED'""",(clientnum,))
+            cursor.execute("""UPDATE mission SET username = ?, status = 'PENDING' WHERE status = 'CRASHED'""",(username1,))
             conn.commit()
             conn.close()
             return row[2], row[3]
-    add_range_to_mission(clientnum, rows[-1][3] + 1, hop)
+    add_range_to_mission(username1, start_of_range, hop)
     conn.commit()
     conn.close()
-    return rows[-1][2] + 1, rows[-1][2] + hop
+    return start_of_range, start_of_range + hop - 1
 
-def update_client_crashing(clientnum):
-    update_scaned_range(clientnum, 'CRASHED')
+def update_client_crashing(username1):
+    update_scaned_range(username1, 'CRASHED')
 
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS users (
@@ -129,7 +136,7 @@ CREATE TABLE IF NOT EXISTS users (
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS mission (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client STRING NOT NULL,
+    username STRING NOT NULL,
     start_of_range INTEGER NOT NULL,
     end_of_range INTEGER NOT NULL,
     status STRING NOT NULL
@@ -191,9 +198,9 @@ if row:
 else:
     print("No data found for the given username")
 
-#add_range_to_mission('c3', 1020000000, 10 ** 7)
+#add_range_to_mission('c3', 1000000000, 10 ** 7)
 #update_scaned_range('c3', 'CRASHED')
-give_new_range_to_client('c1', 10 ** 7, 'NO')
+#give_new_range_to_client('meow', 10 ** 7, "NO")
 
 cursor.execute('SELECT * FROM mission')
 rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
