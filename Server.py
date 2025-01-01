@@ -59,11 +59,9 @@ class Server:
                 for c in self.clients:
                     c.close()
                 self.run = False
-                threading.Event().set()
             if status == self.protocol.NOT_FOUND and number == "-1":
                 self.handle_client_range(client_socket, self.get_username_of_client(client_socket))
 
-        #if valid:
         return True
 
     def pick_biggest_max_range(self):
@@ -105,9 +103,9 @@ class Server:
         conn = sqlite3.connect('my_database.db')
         # Create a cursor object to interact with the database
         cursor = conn.cursor()
-
+        # need to check if user in active user list
         if self.is_client_in_list(username1):  # right code
-            return False, "username already logged in"
+            pass
         cursor.execute('SELECT * FROM users')
         rows = cursor.fetchall()
         """
@@ -161,46 +159,38 @@ class Server:
         # need to add to user list
         return True, "user added successfully"
 
-    def add_range_to_mission(username1, start_of_range, hop):
+    def add_range_to_mission(self, clientnum, start_of_range, hop):
         conn = sqlite3.connect('my_database.db')
         # Create a cursor object to interact with the database
         cursor = conn.cursor()
         end_of_range = start_of_range + hop - 1
-        print(username1, start_of_range)
         cursor.execute('''
-        INSERT INTO mission (username, start_of_range, end_of_range, status)
+        INSERT INTO mission (client, start_of_range, end_of_range, status)
         VALUES (?, ?, ?, 'PENDING')
-        ''', (username1, start_of_range, end_of_range))
+        ''', (clientnum, start_of_range, end_of_range))
+        conn.commit()
+        conn.close()
+
+    def update_scaned_range(self, clientnum, status):
+        conn = sqlite3.connect('my_database.db')
+        # Create a cursor object to interact with the database
+        cursor = conn.cursor()
+        cursor.execute("""UPDATE mission SET status = ? WHERE client = ? AND status = 'PENDING'""", (status, clientnum))
         conn.commit()
         conn.close()
 
     # Example: Create a table
-    def update_scaned_range(username1, status):
-        conn = sqlite3.connect('my_database.db')
-        # Create a cursor object to interact with the database
-        cursor = conn.cursor()
-        cursor.execute("""UPDATE mission SET status = ? WHERE username = ? AND status = 'PENDING'""",
-                       (status, username1))
-        conn.commit()
-        conn.close()
 
-    # return start and end of range in a tuple or None if num was found, status = None if client just loged in
-    def give_new_range_to_client(username1, hop, status=None):
+    def give_new_range_to_client(self, clientnum, hop, status=None):
         conn = sqlite3.connect('my_database.db')
         # Create a cursor object to interact with the database
         cursor = conn.cursor()
 
         if status != None:
-            update_scaned_range(username1, status)
+            self.update_scaned_range(clientnum, status)
 
         cursor.execute('SELECT * FROM mission')
         rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
-        start_of_range = None
-        if rows == []:  # if mission table is empty, start from 10 ** 9
-            start_of_range = 10 ** 9
-        else:
-            start_of_range = rows[-1][3] + 1
-
         for row in rows:
             if row[4] == 'YES':  # if status == 'YES'
                 conn.commit()
@@ -208,31 +198,36 @@ class Server:
                 return None
         for row in rows:
             if row[4] == 'CRASHED':  # if status == 'CRASHED'
-                cursor.execute("""UPDATE mission SET username = ?, status = 'PENDING' WHERE status = 'CRASHED'""",
-                               (username1,))
+                cursor.execute("""UPDATE mission SET client = ?, status = 'PENDING' WHERE status = 'CRASHED'""",
+                               (clientnum,))
                 conn.commit()
                 conn.close()
                 return row[2], row[3]
-        add_range_to_mission(username1, start_of_range, hop)
+        self.add_range_to_mission(clientnum, rows[-1][3] + 1, hop)
         conn.commit()
         conn.close()
-        return start_of_range, start_of_range + hop - 1
+        return rows[-1][2] + 1, rows[-1][2] + hop
 
-    def update_client_crashing(username1):
-        update_scaned_range(username1, 'CRASHED')
+    def update_client_crashing(self, clientnum):
+        self.update_scaned_range(clientnum, 'CRASHED')
+
     def main(self):
         print("server start")
         server_socket = socket.socket()
         server_socket.bind(('0.0.0.0', 8820))
-        server_socket.listen(1)
+        server_socket.listen(5)  # Increase the queue size to handle more connections
 
         while self.run:
-            (client_socket, client_address) = server_socket.accept()
-            print("New client connect")
+            client_socket, client_address = server_socket.accept()
+            print("New client connected:", client_address)
             self.clients.add(client_socket)
-            a = Thread(target=self.handle_client, args=(client_socket, server_socket))
-            a.start()
-            print(self.run)
+
+            # Start the client handling in a new thread
+            client_thread = Thread(target=self.handle_client, args=(client_socket, server_socket))
+            client_thread.daemon = True  # Ensure threads are terminated when the main program ends
+            client_thread.start()
+
+        server_socket.close()  # Ensure server socket is closed when stopping
 
 
 if __name__ == "__main__":
