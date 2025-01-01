@@ -11,7 +11,7 @@ class Client:
         Initializes the Client with the target MD5 hash and the search range.
         """
         self.protocol = protocol.Protocol()
-        self.server_ip = "10.51.101.49"
+        self.server_ip = "127.0.0.2"
         self.server_port = 8820
         self.target_md5 = "g"
         self.range_start = 3
