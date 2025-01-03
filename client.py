@@ -1,5 +1,6 @@
 import hashlib
 import multiprocessing
+import sys
 import protocol
 import socket
 import time
@@ -32,15 +33,21 @@ class Client:
         while bool:
             sign_log = input("sign in or log in? ")
             if sign_log == "sign_in" or sign_log == "log_in":
-                bool = False
-        username = input("Enter username: ")
-        password = input("Enter password: ")
-        if sign_log == "sign_in":
-            age = input("Enter age: ")
-            print("entered details")
-            self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-        elif sign_log == "log_in":
-            self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
+                username = input("Enter username: ")
+                password = input("Enter password: ")
+                if sign_log == "sign_in":
+                    age = input("Enter age: ")
+                    print("entered details")
+                    self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
+                    validnt = self.protocol.get_msg(self.client_socket)[2]
+                    if validnt[0] == "True":
+                        bool = False
+                elif sign_log == "log_in":
+                    self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
+                    validnt = self.protocol.get_msg(self.client_socket)[2]
+                    if validnt[0] == "True":
+                        bool = False
+
         print("waiting for md5")
         md5 = self.protocol.get_msg(self.client_socket)[2] # should get give md5
         self.target_md5 = str(md5[0])
@@ -101,31 +108,36 @@ class Client:
         print(f"Search completed in {elapsed_time:.2f} seconds.")
 
     def actual_run(self):
-        """
-        Runs the search process and prints the result with the elapsed time.
-        """
-        print("Starting search...")
+        try:
+            """
+            Runs the search process and prints the result with the elapsed time.
+            """
+            print("Starting search...")
 
+            data = self.protocol.get_msg(self.client_socket)[2] # should get give range
+            start_time = time.time()
+            print(str(data))
+            self.range_start = int(data[0])
+            self.range_end = int(data[1])
 
-        #self.connect()
-        data = self.protocol.get_msg(self.client_socket)[2] # should get give range
-        start_time = time.time()
-        print(str(data))
-        self.range_start = int(data[0])
-        self.range_end = int(data[1])
+            found, number = self.find_md5_hash_in_range()
 
-        found, number = self.find_md5_hash_in_range()
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            if found:
+                print(f"Hash found! The number is: {number}")
+                self.send({number})
+            else:
+                print("Hash not found in the range.")
+                self.send(-1)
+            print(f"Search completed in {elapsed_time:.2f} seconds.")
+        except ConnectionResetError:
+            print("The server got what he wanted, now go away.")
+            sys.exit()
+        except KeyboardInterrupt:
+            self.client_socket.send(self.protocol.create_msg("CRASH", ))
+            print("crashed")
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-
-        if found:
-            print(f"Hash found! The number is: {number}")
-            self.send({number})
-        else:
-            print("Hash not found in the range.")
-            self.send(-1)
-        print(f"Search completed in {elapsed_time:.2f} seconds.")
 
     def send(self, found):
         if found == -1:
