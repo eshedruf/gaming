@@ -1,6 +1,5 @@
 import socket
 import sqlite3
-import threading
 from protocol import Protocol
 from threading import Thread
 import hashlib
@@ -23,11 +22,11 @@ class Server:
         while self.run:
             valid, commando, msg_list = self.protocol.get_msg(client_socket)
             if self.protocol.check_cmd(commando) and valid:
-                valid = self.handle_response(client_socket, commando, msg_list, server_socket)
+                valid = self.handle_response(client_socket, commando, msg_list)
                 if not valid:
                     continue
 
-    def handle_response(self, client_socket, command, msg_list, server_socket):
+    def handle_response(self, client_socket, command, msg_list):
         valid, message = None, None
         if command == self.protocol.CMDS[0]:  # signup
             username = msg_list[0]
@@ -46,10 +45,12 @@ class Server:
             password = msg_list[1]
             valid, message = self.client_log_in_if_possible(username, password)
             print(message)
-            num = hashlib.md5(str(1_030_000_000).encode()).hexdigest()
-            msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
-            client_socket.send(msg_md5)
-            self.handle_client_range(client_socket, username)
+            client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
+            if valid:
+                num = hashlib.md5(str(1_030_000_000).encode()).hexdigest()
+                msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
+                client_socket.send(msg_md5)
+                self.handle_client_range(client_socket, username)
 
         if command == self.protocol.CMDS[3]:  # check
             status = msg_list[0]
@@ -105,7 +106,8 @@ class Server:
         cursor = conn.cursor()
         # need to check if user in active user list
         if self.is_client_in_list(username1):  # right code
-            pass
+            conn.close()
+            return False, "User is not in the active user list"
         cursor.execute('SELECT * FROM users')
         rows = cursor.fetchall()
         """
