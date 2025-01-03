@@ -17,16 +17,16 @@ class Server:
         self.protocol = Protocol()
         self.run = True
 
-    def handle_client(self, client_socket, server_socket):  # Takes client socket as argument.
-        """Handles a single client connection."""
+
+    def handle_client(self, client_socket, server_socket):
         while self.run:
             valid, commando, msg_list = self.protocol.get_msg(client_socket)
             if self.protocol.check_cmd(commando) and valid:
-                valid = self.handle_response(client_socket, commando, msg_list)
+                valid = self.handle_response(client_socket, commando, msg_list, server_socket)
                 if not valid:
                     continue
 
-    def handle_response(self, client_socket, command, msg_list):
+    def handle_response(self, client_socket, command, msg_list, server_socket):
         valid, message = None, None
         if command == self.protocol.CMDS[0]:  # signup
             username = msg_list[0]
@@ -34,11 +34,12 @@ class Server:
             age = msg_list[2]
             valid, message = self.client_sign_up_if_possible(username, password, age)
             print(message)
-            num = hashlib.md5(str(1_030_000_000).encode()).hexdigest()
-            msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
-            print(msg_md5)
-            client_socket.send(msg_md5)
-            self.handle_client_range(client_socket, username)
+            client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
+            if valid:
+                num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
+                msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
+                client_socket.send(msg_md5)
+                self.handle_client_range(client_socket, username)
 
         if command == self.protocol.CMDS[1]:  # login
             username = msg_list[0]
@@ -47,7 +48,7 @@ class Server:
             print(message)
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
             if valid:
-                num = hashlib.md5(str(1_030_000_000).encode()).hexdigest()
+                num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
                 msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
                 client_socket.send(msg_md5)
                 self.handle_client_range(client_socket, username)
@@ -57,6 +58,7 @@ class Server:
             number = msg_list[1]
             if status == self.protocol.FOUND:
                 print(number)
+                server_socket.close()
                 for c in self.clients:
                     c.close()
                 self.run = False
@@ -80,18 +82,25 @@ class Server:
                     return tuples[1]
 
     def handle_client_range(self, client_socket, username):  # without handling disconnections...yet
-        min_range = self.pick_biggest_max_range()
-        max_range = min_range + self.HOPS
-        if self.is_client_in_list(username):
-            for proc in self.list_of_proc:
-                if (username, client_socket) in proc:
-                    proc[1] = (min_range, max_range)
+        if len(self.temp_ranges) > 0:
+            range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [self.temp_ranges[0][0], self.temp_ranges[0][1]])
+            self.temp_ranges.remove(self.temp_ranges[0])
         else:
-            self.list_of_proc.append([(username, client_socket), (min_range, max_range)])
-        range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
-        print(range_msg)
+            min_range = self.pick_biggest_max_range()
+            max_range = min_range + self.HOPS
+            if self.is_client_in_list(username):
+                for proc in self.list_of_proc:
+                    if (username, client_socket) in proc:
+                        proc[1] = (min_range, max_range)
+            else:
+                self.list_of_proc.append([(username, client_socket), (min_range, max_range)])
+            range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
         client_socket.send(range_msg)
-        print("yes")
+
+    def update_client_crashing(self, clientnum):
+        """Handles a client's crash and adds its range to temp_ranges."""
+        self.update_scaned_range(clientnum, 'CRASHED')
+
 
     def is_client_in_list(self, username):
         for proc in self.list_of_proc:
@@ -102,39 +111,29 @@ class Server:
 
     def client_log_in_if_possible(self, username1, password1):
         conn = sqlite3.connect('my_database.db')
-        # Create a cursor object to interact with the database
         cursor = conn.cursor()
-        # need to check if user in active user list
-        if self.is_client_in_list(username1):  # right code
-            conn.close()
-            return False, "User is not in the active user list"
-        cursor.execute('SELECT * FROM users')
-        rows = cursor.fetchall()
-        """
-        collumn 0 - username
-        collumn 1 - password
-        collumn 2 - age
-        """
-        users = []
-        for row in rows:
-            users.append(row[0])
-        if username1 not in users:  # if username doesn't exist
-            conn.close()
-            return False, "failed to log in, username doesn't exist"
 
-        # use username to find password in db
+        # Check if the user is already in the active user list
+        if self.is_client_in_list(username1):
+            conn.close()
+            return False, "User is already in the active user list"
+
+        # Query the database for the user
         cursor.execute("SELECT * FROM users WHERE username == ?", (username1,))
-
-        # Step 4: Fetch the row
         row = cursor.fetchone()
-        print(row)
-        # Step 5: Print the row (it will print as a tuple)
-        if str(password1) == row[2]:
+
+        # Check if the user exists
+        if row is None:
             conn.close()
-            # add to active user list
-            return True, "logged in successfully"
+            return False, "Failed to log in, username doesn't exist"
+
+        # Check if the password matches
+        if str(password1) == row[1]:  # Compare with the password column
+            conn.close()
+            return True, "Logged in successfully"
+
         conn.close()
-        return False, "incorrect password"
+        return False, "Incorrect password"
 
     def client_sign_up_if_possible(self, username1, password1, age1):
         conn = sqlite3.connect('my_database.db')
@@ -210,26 +209,25 @@ class Server:
         conn.close()
         return rows[-1][2] + 1, rows[-1][2] + hop
 
-    def update_client_crashing(self, clientnum):
-        self.update_scaned_range(clientnum, 'CRASHED')
 
     def main(self):
         print("server start")
         server_socket = socket.socket()
         server_socket.bind(('0.0.0.0', 8820))
-        server_socket.listen(5)  # Increase the queue size to handle more connections
+        server_socket.listen(0)  # Increase the queue size to handle more connections
 
         while self.run:
-            client_socket, client_address = server_socket.accept()
-            print("New client connected:", client_address)
-            self.clients.add(client_socket)
+            try:
+                client_socket, client_address = server_socket.accept()
+                print("New client connected:", client_address)
+                self.clients.add(client_socket)
 
-            # Start the client handling in a new thread
-            client_thread = Thread(target=self.handle_client, args=(client_socket, server_socket))
-            client_thread.daemon = True  # Ensure threads are terminated when the main program ends
-            client_thread.start()
-
-        server_socket.close()  # Ensure server socket is closed when stopping
+                # Start the client handling in a new thread
+                client_thread = Thread(target=self.handle_client, args=(client_socket, server_socket))
+                client_thread.daemon = True  # Ensure threads are terminated when the main program ends
+                client_thread.start()
+            except OSError:
+                break
 
 
 if __name__ == "__main__":
