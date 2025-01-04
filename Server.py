@@ -1,5 +1,7 @@
 import socket
 import sqlite3
+import threading
+
 from protocol import Protocol
 from threading import Thread
 import hashlib
@@ -8,7 +10,7 @@ import hashlib
 class Server:
     def __init__(self):
         self.clients = set()  # do not duplicate the clients
-        self.list_of_proc = []  # [[(username, client), (min,max)],...]
+        self.list_of_proc = []  # [(username, client),...]
         self.temp_ranges = []
         self.HOPS = 10 ** 7
         self.MINIMUM_RANGE = 10 ** 9
@@ -16,15 +18,22 @@ class Server:
         self.INVALID_COMMANDO = "Your command is invalid, try again."
         self.protocol = Protocol()
         self.run = True
-
+        self.lock = threading.Lock()
 
     def handle_client(self, client_socket, server_socket):
-        while self.run:
-            valid, commando, msg_list = self.protocol.get_msg(client_socket)
-            if self.protocol.check_cmd(commando) and valid:
-                valid = self.handle_response(client_socket, commando, msg_list, server_socket)
-                if not valid:
-                    continue
+        try:
+            while self.run:
+                valid, commando, msg_list = self.protocol.get_msg(client_socket)
+                if self.protocol.check_cmd(commando) and valid:
+                    valid = self.handle_response(client_socket, commando, msg_list, server_socket)
+                    if not valid:
+                        continue
+        except ConnectionResetError:
+            username = self.get_username_of_client(client_socket)
+            self.list_of_proc.remove((username,client_socket))
+            self.lock.acquire()
+            self.update_client_crashing(username)
+            self.lock.release()
 
     def handle_response(self, client_socket, command, msg_list, server_socket):
         valid, message = None, None
@@ -32,25 +41,31 @@ class Server:
             username = msg_list[0]
             password = msg_list[1]
             age = msg_list[2]
+            self.lock.acquire()
             valid, message = self.client_sign_up_if_possible(username, password, age)
+            self.lock.release()
             print(message)
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
             if valid:
                 num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
                 msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
                 client_socket.send(msg_md5)
+                self.list_of_proc.append((username, client_socket))
                 self.handle_client_range(client_socket, username)
 
         if command == self.protocol.CMDS[1]:  # login
             username = msg_list[0]
             password = msg_list[1]
+            self.lock.acquire()
             valid, message = self.client_log_in_if_possible(username, password)
+            self.lock.release()
             print(message)
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
             if valid:
                 num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
                 msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
                 client_socket.send(msg_md5)
+                self.list_of_proc.append((username, client_socket))
                 self.handle_client_range(client_socket, username)
 
         if command == self.protocol.CMDS[3]:  # check
@@ -63,48 +78,27 @@ class Server:
                     c.close()
                 self.run = False
             if status == self.protocol.NOT_FOUND and number == "-1":
-                self.handle_client_range(client_socket, self.get_username_of_client(client_socket))
+                self.handle_client_range(client_socket, self.get_username_of_client(client_socket), status)
 
         return True
 
-    def pick_biggest_max_range(self):
-        maximums = []
-        if len(self.list_of_proc) == 0:
-            return self.MINIMUM_RANGE
-        for i in range(0, len(self.list_of_proc)):
-            maximums.append(self.list_of_proc[i][1][1])
-        return max(maximums)
-
     def get_username_of_client(self, client_socket):
         for proc in self.list_of_proc:
-            for tuples in proc:
-                if client_socket in tuples:
-                    return tuples[1]
+            if client_socket in proc:
+                return proc[0]
 
-    def handle_client_range(self, client_socket, username):  # without handling disconnections...yet
-        if len(self.temp_ranges) > 0:
-            range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [self.temp_ranges[0][0], self.temp_ranges[0][1]])
-            self.temp_ranges.remove(self.temp_ranges[0])
-        else:
-            min_range = self.pick_biggest_max_range()
-            max_range = min_range + self.HOPS
-            if self.is_client_in_list(username):
-                for proc in self.list_of_proc:
-                    if (username, client_socket) in proc:
-                        proc[1] = (min_range, max_range)
-            else:
-                self.list_of_proc.append([(username, client_socket), (min_range, max_range)])
-            range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
+    def handle_client_range(self, client_socket, username, status=None):
+        min_range, max_range = self.give_new_range_to_client(username, status)
+        range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
         client_socket.send(range_msg)
 
-    def update_client_crashing(self, clientnum):
+    def update_client_crashing(self, username):
         """Handles a client's crash and adds its range to temp_ranges."""
-        self.update_scaned_range(clientnum, 'CRASHED')
-
+        self.update_scaned_range(username, 'CRASHED')
 
     def is_client_in_list(self, username):
         for proc in self.list_of_proc:
-            if username == proc[0][0]:
+            if username == proc[0]:
                 return True
         else:
             return False
@@ -166,7 +160,7 @@ class Server:
         cursor = conn.cursor()
         end_of_range = start_of_range + hop - 1
         cursor.execute('''
-        INSERT INTO mission (client, start_of_range, end_of_range, status)
+        INSERT INTO mission (username, start_of_range, end_of_range, status)
         VALUES (?, ?, ?, 'PENDING')
         ''', (clientnum, start_of_range, end_of_range))
         conn.commit()
@@ -176,41 +170,57 @@ class Server:
         conn = sqlite3.connect('my_database.db')
         # Create a cursor object to interact with the database
         cursor = conn.cursor()
-        cursor.execute("""UPDATE mission SET status = ? WHERE client = ? AND status = 'PENDING'""", (status, clientnum))
+        cursor.execute("""UPDATE mission SET status = ? WHERE username = ? AND status = 'PENDING'""", (status, clientnum))
         conn.commit()
         conn.close()
 
     # Example: Create a table
 
-    def give_new_range_to_client(self, clientnum, hop, status=None):
+    def give_new_range_to_client(self, username, status=None):
         conn = sqlite3.connect('my_database.db')
         # Create a cursor object to interact with the database
         cursor = conn.cursor()
 
-        if status != None:
-            self.update_scaned_range(clientnum, status)
+        if status is not None:
+            self.update_scaned_range(username, status)
 
         cursor.execute('SELECT * FROM mission')
         rows = cursor.fetchall()  # You can also use fetchone() or fetchmany(n)
         for row in rows:
-            if row[4] == 'YES':  # if status == 'YES'
+            if row[4] == 'FOUND':  # if status == 'YES'
                 conn.commit()
                 conn.close()
                 return None
         for row in rows:
             if row[4] == 'CRASHED':  # if status == 'CRASHED'
-                cursor.execute("""UPDATE mission SET client = ?, status = 'PENDING' WHERE status = 'CRASHED'""",
-                               (clientnum,))
+                cursor.execute("""UPDATE mission SET username = ?, status = 'PENDING' WHERE status = 'CRASHED'""",
+                               (username,))
                 conn.commit()
                 conn.close()
                 return row[2], row[3]
-        self.add_range_to_mission(clientnum, rows[-1][3] + 1, hop)
+        if rows == []:
+            self.add_range_to_mission(username, self.MINIMUM_RANGE, self.HOPS)
+            conn.commit()
+            conn.close()
+            return self.MINIMUM_RANGE, self.MINIMUM_RANGE + self.HOPS + 1
+        else:
+            self.add_range_to_mission(username, rows[-1][3] + 1, self.HOPS)
         conn.commit()
         conn.close()
-        return rows[-1][2] + 1, rows[-1][2] + hop
-
+        return rows[-1][2] + 1, rows[-1][2] + self.HOPS + 1
 
     def main(self):
+        conn = sqlite3.connect('my_database.db')
+        cursor = conn.cursor()
+        cursor.execute("""DROP TABLE IF EXISTS mission""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS mission (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username STRING NOT NULL,
+        start_of_range INTEGER NOT NULL,
+        end_of_range INTEGER NOT NULL,
+        status STRING NOT NULL);""")
+        conn.commit()
+        conn.close()
         print("server start")
         server_socket = socket.socket()
         server_socket.bind(('0.0.0.0', 8820))
