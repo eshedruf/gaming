@@ -6,6 +6,7 @@ import socket
 import time
 from threading import Thread
 
+
 class Client:
     def __init__(self):
         """
@@ -20,7 +21,6 @@ class Client:
         self.cpu_count = multiprocessing.cpu_count()
         self.client_socket = socket.socket()
         self.finish = False
-
 
     def number_to_md5(self, num):
         num_hash = hashlib.md5(str(num).encode()).hexdigest()
