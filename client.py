@@ -4,6 +4,7 @@ import sys
 import protocol
 import socket
 import time
+from window import Window
 from threading import Thread
 
 
@@ -21,6 +22,7 @@ class Client:
         self.cpu_count = multiprocessing.cpu_count()
         self.client_socket = socket.socket()
         self.finish = False
+        self.window = Window()
 
     def number_to_md5(self, num):
         num_hash = hashlib.md5(str(num).encode()).hexdigest()
@@ -30,12 +32,21 @@ class Client:
         print("client connecting to server...")
         self.client_socket.connect((self.server_ip, self.server_port))
         bool = True
-        while bool:
-            sign_log = input("sign in or log in? ")
-            if sign_log == "sign_in" or sign_log == "log_in":
+        a = Thread(target=client.window.start)
+        a.start()
+        username = client.window.username_entry.get()
+        password = client.window.password_entry.get()
+        age = client.window.age_entry.get()
+        print(username)
+        print(password)
+        print(age)
+
+        """while bool:
+            sign_log = input("sign up or log in? ")
+            if sign_log == "sign_up" or sign_log == "log_in":
                 username = input("Enter username: ")
                 password = input("Enter password: ")
-                if sign_log == "sign_in":
+                if sign_log == "sign_up":
                     age = input("Enter age: ")
                     print("entered details")
                     self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
@@ -46,7 +57,7 @@ class Client:
                     self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
                     validnt = self.protocol.get_msg(self.client_socket)[2]
                     if validnt[0] == "True":
-                        bool = False
+                        bool = False"""
 
         print("waiting for md5")
         md5 = self.protocol.get_msg(self.client_socket)[2] # should get give md5
@@ -153,5 +164,5 @@ if __name__ == "__main__":
     #client.actual_run()
     client.connect()
     while client.finish == False:
-        c = Thread(target = client.actual_run())
+        c = Thread(target = client.actual_run)
         print(client.number_to_md5(1_001_000_000))
