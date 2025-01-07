@@ -1,6 +1,8 @@
 import hashlib
 import multiprocessing
 import sys
+import threading
+
 import protocol
 import socket
 import time
@@ -15,7 +17,7 @@ class Client:
         """
         self.protocol = protocol.Protocol()
         self.server_ip = "127.0.0.2"
-        self.server_port = 8820
+        self.server_port = 8821
         self.target_md5 = "g"
         self.range_start = 3
         self.range_end = 6
@@ -32,14 +34,32 @@ class Client:
         print("client connecting to server...")
         self.client_socket.connect((self.server_ip, self.server_port))
         bool = True
-        a = Thread(target=client.window.start)
-        a.start()
-        username = client.window.username_entry.get()
-        password = client.window.password_entry.get()
-        age = client.window.age_entry.get()
-        print(username)
-        print(password)
-        print(age)
+        age = "-1"
+        self.window.start()
+        if self.window.submitted == True:
+            username = client.window.username_val
+            password = client.window.password_val
+            age = client.window.age_val
+            print(username)
+            print(password)
+            print(age)
+
+            while bool:
+                if age != "-1":
+                    # sign up
+                    self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
+                    validnt = self.protocol.get_msg(self.client_socket)[2]
+                    if validnt[0] == "True":
+                        bool = False
+
+                else:
+                    # log in
+                    self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
+                    validnt = self.protocol.get_msg(self.client_socket)[2]
+                    if validnt[0] == "True":
+                        bool = False
+
+
 
         """while bool:
             sign_log = input("sign up or log in? ")
