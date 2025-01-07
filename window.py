@@ -24,6 +24,10 @@ class Window:
 
         self.submitted = False
 
+        self.username_val = None
+        self.password_val = None
+        self.age_val = None
+
     def clear_screen(self):
         """Clears all widgets from the screen."""
         # Destroy all widgets currently packed into the window
@@ -61,7 +65,6 @@ class Window:
         submit_button = tk.Button(self.connection_window, text="Submit", command=self.submit)
         submit_button.pack(pady=20)
 
-
     def show_log_in(self):
         """Show Log In screen (username and password)."""
         self.clear_screen()
@@ -90,12 +93,28 @@ class Window:
         submit_button.pack(pady=20)
 
     def submit(self):
-        self.clear_screen()
+        """Handle submit action."""
         title = tk.Label(self.connection_window, text="MD5 RUSH!!", font=('Helvetica', 16))
         title.pack(pady=20)
+
+        self.username_val = self.username_entry.get()
+        self.password_val = self.password_entry.get()
+        self.age_val = self.age_entry.get()
+
+        self.clear_screen()
         self.submitted = True
 
-
     def start(self):
-        """Start the mainloop of the connection window."""
-        self.connection_window.mainloop()
+        """Start the custom event loop."""
+        while not self.submitted:
+            # Update the window and check for events
+            self.connection_window.update_idletasks()  # Process idle events like geometry changes
+            self.connection_window.update()  # Process events like button clicks, etc.
+
+        # Once submitted, you can do any additional actions
+        print("Form Submitted!")
+
+
+# Example usage
+#window = Window()
+#window.start()
