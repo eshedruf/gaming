@@ -224,7 +224,7 @@ class Server:
         conn.close()
         print("server start")
         server_socket = socket.socket()
-        server_socket.bind(('0.0.0.0', 8820))
+        server_socket.bind(('0.0.0.0', 8821))
         server_socket.listen(0)  # Increase the queue size to handle more connections
 
         while self.run:
