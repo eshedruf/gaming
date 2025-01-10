@@ -34,7 +34,6 @@ class Protocol:
             print(msg)
             command = msg.split(self.SEPERATOR)[0]
             lst = msg.split(self.SEPERATOR)[1::]
-            print(lst)
             return True, command, lst
         except ValueError:
             return False, "", ""
