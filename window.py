@@ -86,7 +86,7 @@ class Window:
         self.password_entry = tk.Entry(self.connection_window, show="*")  # Hide password input
         self.password_entry.pack(pady=5)
 
-        self.age_entry = "-1"
+        self.age_val = "-1"
 
         # Add a Submit Button for Log In
         submit_button = tk.Button(self.connection_window, text="Submit", command=self.submit)
@@ -94,27 +94,20 @@ class Window:
 
     def submit(self):
         """Handle submit action."""
-        title = tk.Label(self.connection_window, text="MD5 RUSH!!", font=('Helvetica', 16))
-        title.pack(pady=20)
-
         self.username_val = self.username_entry.get()
         self.password_val = self.password_entry.get()
-        self.age_val = self.age_entry.get()
-
-        self.clear_screen()
+        if self.age_val != "-1":
+            self.age_val = self.age_entry.get()
         self.submitted = True
 
-    def start(self):
+    def reset_val(self, value):
+        value.delete(0, tk.END)
+        value.insert(0, '')
+
+    def update(self):
         """Start the custom event loop."""
-        while not self.submitted:
             # Update the window and check for events
-            self.connection_window.update_idletasks()  # Process idle events like geometry changes
-            self.connection_window.update()  # Process events like button clicks, etc.
+        self.connection_window.update_idletasks()  # Process idle events like geometry changes
+        self.connection_window.update()  # Process events like button clicks, etc.
 
         # Once submitted, you can do any additional actions
-        print("Form Submitted!")
-
-
-# Example usage
-#window = Window()
-#window.start()
