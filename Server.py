@@ -73,7 +73,6 @@ class Server:
             number = msg_list[1]
             if status == self.protocol.FOUND:
                 print(number)
-                self.give_new_range_to_client(self.get_username_of_client(client_socket),status)
                 server_socket.close()
                 for c in self.clients:
                     c.close()
@@ -91,6 +90,7 @@ class Server:
     def handle_client_range(self, client_socket, username, status=None):
         min_range, max_range = self.give_new_range_to_client(username, status)
         range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range])
+        print(range_msg)
         client_socket.send(range_msg)
 
     def update_client_crashing(self, username):
@@ -203,12 +203,12 @@ class Server:
             self.add_range_to_mission(username, self.MINIMUM_RANGE, self.HOPS)
             conn.commit()
             conn.close()
-            return self.MINIMUM_RANGE, self.MINIMUM_RANGE + self.HOPS
+            return self.MINIMUM_RANGE, self.MINIMUM_RANGE + self.HOPS + 1
         else:
             self.add_range_to_mission(username, rows[-1][3] + 1, self.HOPS)
         conn.commit()
         conn.close()
-        return rows[-1][3] + 1, rows[-1][3] + self.HOPS + 1
+        return rows[-1][2] + 1, rows[-1][2] + self.HOPS + 1
 
     def main(self):
         conn = sqlite3.connect('my_database.db')
@@ -224,7 +224,7 @@ class Server:
         conn.close()
         print("server start")
         server_socket = socket.socket()
-        server_socket.bind(('0.0.0.0', 8821))
+        server_socket.bind(('0.0.0.0', 8818))
         server_socket.listen(0)  # Increase the queue size to handle more connections
 
         while self.run:
