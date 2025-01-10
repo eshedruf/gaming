@@ -1,13 +1,11 @@
 import hashlib
 import multiprocessing
 import sys
-import threading
-
+import tkinter
 import protocol
 import socket
 import time
 from window import Window
-from threading import Thread
 
 
 class Client:
@@ -16,8 +14,8 @@ class Client:
         Initializes the Client with the target MD5 hash and the search range.
         """
         self.protocol = protocol.Protocol()
-        self.server_ip = "127.0.0.2"
-        self.server_port = 8821
+        self.server_ip = "127.0.0.1"
+        self.server_port = 8818
         self.target_md5 = "g"
         self.range_start = 3
         self.range_end = 6
@@ -35,31 +33,44 @@ class Client:
         self.client_socket.connect((self.server_ip, self.server_port))
         bool = True
         age = "-1"
-        self.window.start()
-        if self.window.submitted == True:
-            username = client.window.username_val
-            password = client.window.password_val
-            age = client.window.age_val
-            print(username)
-            print(password)
-            print(age)
-
-            while bool:
+        while bool:
+            self.window.update()
+            if self.window.submitted == True:
+                username = self.window.username_val
+                password = self.window.password_val
+                age = self.window.age_val
+                print(username)
+                print(password)
+                print(age)
                 if age != "-1":
                     # sign up
                     self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-                    validnt = self.protocol.get_msg(self.client_socket)[2]
-                    if validnt[0] == "True":
+                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    print(is_valid)
+                    if is_valid[0] == "True":
+                        self.window.clear_screen()
+                        self.window.connection_window.destroy()
                         bool = False
+                    else:
+                        self.window.reset_val(self.window.username_entry)
+                        error_masaזe = tkinter.Label(self.window.connection_window, text="L + Ratio + תפוס", font=('Calibri', 16))
+                        error_masaזe.pack(pady=20)
+                        self.window.submitted = False
 
                 else:
                     # log in
                     self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
-                    validnt = self.protocol.get_msg(self.client_socket)[2]
-                    if validnt[0] == "True":
+                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    if is_valid[0] == "True":
+                        self.window.clear_screen()
+                        self.window.connection_window.destroy()
                         bool = False
-
-
+                    else:
+                        self.window.reset_val(self.window.username_entry)
+                        self.window.reset_val(self.window.password_entry)
+                        error_masaזe = tkinter.Label(self.window.connection_window, text="לא קיים / סיסמה לא נכונה", font=('Calibri', 16))
+                        error_masaזe.pack(pady=20)
+                        self.window.submitted = False
 
         """while bool:
             sign_log = input("sign up or log in? ")
@@ -70,13 +81,13 @@ class Client:
                     age = input("Enter age: ")
                     print("entered details")
                     self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-                    validnt = self.protocol.get_msg(self.client_socket)[2]
-                    if validnt[0] == "True":
+                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    if is_valid[0] == "True":
                         bool = False
                 elif sign_log == "log_in":
                     self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
-                    validnt = self.protocol.get_msg(self.client_socket)[2]
-                    if validnt[0] == "True":
+                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    if is_valid[0] == "True":
                         bool = False"""
 
         print("waiting for md5")
@@ -99,7 +110,7 @@ class Client:
         """
         Splits the range across available CPU cores and checks for the target MD5 hash.
         """
-        step = (self.range_end - self.range_start) // self.cpu_count
+        step = max(1, (self.range_end - self.range_start) // self.cpu_count)
         ranges = [
             (self.range_start + i * step, self.range_start + (i + 1) * step)
             for i in range(self.cpu_count)
@@ -140,9 +151,6 @@ class Client:
 
     def actual_run(self):
         try:
-            """
-            Runs the search process and prints the result with the elapsed time.
-            """
             print("Starting search...")
 
             data = self.protocol.get_msg(self.client_socket)[2] # should get give range
@@ -169,7 +177,6 @@ class Client:
             self.client_socket.send(self.protocol.create_msg("CRASH", ))
             print("crashed")
 
-
     def send(self, found):
         if found == -1:
             msg = self.protocol.create_msg("CHECK", [self.protocol.NOT_FOUND, found])
@@ -178,11 +185,10 @@ class Client:
         self.client_socket.send(msg)
 
 
-
 if __name__ == "__main__":
     client = Client()
-    #client.actual_run()
     client.connect()
-    while client.finish == False:
-        c = Thread(target = client.actual_run)
-        print(client.number_to_md5(1_001_000_000))
+    del client.window
+    while not client.finish:
+        client.actual_run()
+
