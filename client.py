@@ -23,6 +23,8 @@ class Client:
         self.client_socket = socket.socket()
         self.finish = False
         self.window = Window()
+        self.server_public_key = None
+        self.AES_KEY = self.protocol.generate_aes_key()
 
     def number_to_md5(self, num):
         num_hash = hashlib.md5(str(num).encode()).hexdigest()
@@ -31,6 +33,13 @@ class Client:
     def connect(self):
         print("client connecting to server...")
         self.client_socket.connect((self.server_ip, self.server_port))
+        is_valid, command, msg_parts = self.protocol.get_msg(self.client_socket)
+        if is_valid and command == self.protocol.CMDS[4]:
+            self.server_public_key = msg_parts[0]
+            encrypted_aes_key = protocol.rsa_encrypt(self.server_public_key, self.AES_KEY)
+            self.client_socket.send(self.protocol.create_msg(self.protocol.CMDS[4], [encrypted_aes_key]))
+
+
         bool = True
         age = "-1"
         while bool:
@@ -42,12 +51,13 @@ class Client:
                 print(username)
                 print(password)
                 print(age)
+
                 if age != "-1":
                     # sign up
                     self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    is_valid = self.protocol.get_msg(self.client_socket)[0]
                     print(is_valid)
-                    if is_valid[0] == "True":
+                    if is_valid:
                         self.window.clear_screen()
                         self.window.connection_window.destroy()
                         bool = False
@@ -174,7 +184,7 @@ class Client:
             print("The server got what he wanted, now go away.")
             sys.exit()
         except KeyboardInterrupt:
-            self.client_socket.send(self.protocol.create_msg("CRASH", ))
+            self.client_socket.send(self.protocol.create_msg("CRASH"))
             print("crashed")
 
     def send(self, found):
@@ -191,4 +201,3 @@ if __name__ == "__main__":
     del client.window
     while not client.finish:
         client.actual_run()
-
