@@ -6,6 +6,7 @@ import protocol
 import socket
 import time
 from window import Window
+from Crypto.Random import get_random_bytes
 
 
 class Client:
@@ -24,7 +25,9 @@ class Client:
         self.finish = False
         self.window = Window()
         self.server_public_key = None
-        self.AES_KEY = self.protocol.generate_aes_key()
+        self.aes_key = None
+        self.cipher_for_encryption = None
+        self.cipher_for_decryption = None
 
     def number_to_md5(self, num):
         num_hash = hashlib.md5(str(num).encode()).hexdigest()
@@ -36,10 +39,16 @@ class Client:
         is_valid, command, msg_parts = self.protocol.get_msg(self.client_socket)
         if is_valid and command == self.protocol.CMDS[4]:
             self.server_public_key = msg_parts[0]
-            encrypted_aes_key = protocol.rsa_encrypt(self.server_public_key, self.AES_KEY)
-            self.client_socket.send(self.protocol.create_msg(self.protocol.CMDS[4], [encrypted_aes_key]))
-
-
+            self.server_public_key = self.server_public_key.strip()
+            print(type(self.server_public_key))
+            print(self.server_public_key)
+            self.aes_key = get_random_bytes(self.protocol.KEY_LENGTH)
+            rsa_cipher = self.protocol.get_rsa_cipher(self.server_public_key)
+            encrypted_aes_key = self.protocol.rsa_encrypt_message(self.aes_key, rsa_cipher)
+            msg = self.protocol.create_msg(self.protocol.CMDS[4], [encrypted_aes_key], self.server_public_key)
+            self.client_socket.send(msg)
+            self.cipher_for_encryption = self.protocol.get_aes_cipher(self.aes_key)
+            self.cipher_for_decryption = self.protocol.get_aes_cipher(self.aes_key)
         bool = True
         age = "-1"
         while bool:
@@ -54,8 +63,8 @@ class Client:
 
                 if age != "-1":
                     # sign up
-                    self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age]))
-                    is_valid = self.protocol.get_msg(self.client_socket)[0]
+                    self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age], self.cipher_for_encryption))
+                    is_valid = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[0]
                     print(is_valid)
                     if is_valid:
                         self.window.clear_screen()
@@ -63,14 +72,15 @@ class Client:
                         bool = False
                     else:
                         self.window.reset_val(self.window.username_entry)
-                        error_masaזe = tkinter.Label(self.window.connection_window, text="L + Ratio + תפוס", font=('Calibri', 16))
-                        error_masaזe.pack(pady=20)
+                        if self.window.error_message is None:
+                            self.window.error_message = tkinter.Label(self.window.connection_window, text="L + Ratio + תפוס", font=('Calibri', 16))
+                            self.window.error_message.pack(pady=20)
                         self.window.submitted = False
 
                 else:
                     # log in
-                    self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password]))
-                    is_valid = self.protocol.get_msg(self.client_socket)[2]
+                    self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password], self.cipher_for_encryption))
+                    is_valid = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2]
                     if is_valid[0] == "True":
                         self.window.clear_screen()
                         self.window.connection_window.destroy()
@@ -78,8 +88,9 @@ class Client:
                     else:
                         self.window.reset_val(self.window.username_entry)
                         self.window.reset_val(self.window.password_entry)
-                        error_masaזe = tkinter.Label(self.window.connection_window, text="לא קיים / סיסמה לא נכונה", font=('Calibri', 16))
-                        error_masaזe.pack(pady=20)
+                        if self.window.error_message is None:
+                            self.window.error_message = tkinter.Label(self.window.connection_window, text="לא קיים / סיסמה לא נכונה", font=('Calibri', 16))
+                            self.window.error_message.pack(pady=20)
                         self.window.submitted = False
 
         """while bool:
@@ -101,7 +112,7 @@ class Client:
                         bool = False"""
 
         print("waiting for md5")
-        md5 = self.protocol.get_msg(self.client_socket)[2] # should get give md5
+        md5 = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2] # should get give md5
         self.target_md5 = str(md5[0])
         print("got md5: " + str(self.target_md5))
 
@@ -163,7 +174,7 @@ class Client:
         try:
             print("Starting search...")
 
-            data = self.protocol.get_msg(self.client_socket)[2] # should get give range
+            data = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2] # should get give range
             start_time = time.time()
             print(str(data))
             self.range_start = int(data[0])
@@ -189,9 +200,9 @@ class Client:
 
     def send(self, found):
         if found == -1:
-            msg = self.protocol.create_msg("CHECK", [self.protocol.NOT_FOUND, found])
+            msg = self.protocol.create_msg("CHECK", [self.protocol.NOT_FOUND, found], self.cipher_for_encryption)
         else:
-            msg = self.protocol.create_msg("CHECK", [self.protocol.FOUND, found])
+            msg = self.protocol.create_msg("CHECK", [self.protocol.FOUND, found], self.cipher_for_encryption)
         self.client_socket.send(msg)
 
 
