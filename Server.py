@@ -10,7 +10,7 @@ import hashlib
 class Server:
     def __init__(self):
         self.clients = set()  # do not duplicate the clients
-        self.list_of_proc = []  # [(username, client),...]
+        self.list_of_proc = []  # [(username, client, aes),...]
         self.temp_ranges = []
         self.HOPS = 10 ** 7
         self.MINIMUM_RANGE = 10 ** 9
@@ -19,23 +19,39 @@ class Server:
         self.protocol = Protocol()
         self.run = True
         self.lock = threading.Lock()
+        self.PRIVATE_KEY, self.PUBLIC_KEY = self.protocol.generate_rsa_keys()
+        self.PUBLIC_KEY_PEM = self.protocol.serialize_public_key(self.PUBLIC_KEY)
 
     def handle_client(self, client_socket, server_socket):
         try:
+            # Generate RSA keys
+             # Serialize the public key to send to the client
+            # Receive the encrypted AES key
+            client_socket.send(self.protocol.create_msg(self.protocol.CMDS[4], [self.PUBLIC_KEY_PEM]))
+            client_aes_key = self.get_client_aes(client_socket)
             while self.run:
-                valid, commando, msg_list = self.protocol.get_msg(client_socket)
+                valid, commando, msg_list = self.protocol.get_msg(client_socket, client_aes_key)
                 if self.protocol.check_cmd(commando) and valid:
-                    valid = self.handle_response(client_socket, commando, msg_list, server_socket)
+                    valid = self.handle_response(client_socket, commando, msg_list, server_socket, client_aes_key)
                     if not valid:
                         continue
+
         except ConnectionResetError:
             username = self.get_username_of_client(client_socket)
-            self.list_of_proc.remove((username,client_socket))
+            for tuple1 in self.list_of_proc:
+                if client_socket in tuple1:
+                    self.list_of_proc.remove(tuple1)
             self.lock.acquire()
             self.update_client_crashing(username)
             self.lock.release()
 
-    def handle_response(self, client_socket, command, msg_list, server_socket):
+    def get_client_aes(self, client_socket):
+        for tuple1 in self.list_of_proc:
+            if client_socket in tuple1:
+                return tuple1[2]
+
+
+    def handle_response(self, client_socket, command, msg_list, server_socket, aes_key=None):
         valid, message = None, None
         if command == self.protocol.CMDS[0]:  # signup
             username = msg_list[0]
@@ -45,10 +61,10 @@ class Server:
             valid, message = self.client_sign_up_if_possible(username, password, age)
             self.lock.release()
             print(message)
-            client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid]))
+            client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid], aes_key))
             if valid:
                 num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
-                msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num])
+                msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num], aes_key)
                 client_socket.send(msg_md5)
                 self.list_of_proc.append((username, client_socket))
                 self.handle_client_range(client_socket, username)
@@ -80,6 +96,9 @@ class Server:
             if status == self.protocol.NOT_FOUND and number == "-1":
                 self.handle_client_range(client_socket, self.get_username_of_client(client_socket), status)
 
+        if command == self.protocol.CMDS[4]: # crypt
+            aes_key_encrypted_by_public = msg_list[0]
+            self.aes_key = self.protocol.rsa_decrypt(self.PRIVATE_KEY, aes_key_encrypted_by_public)
         return True
 
     def get_username_of_client(self, client_socket):
