@@ -1,6 +1,9 @@
 import socket
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 import hashlib
 
 
@@ -16,14 +19,14 @@ class Protocol:
     def check_cmd(self, cmd):
         return cmd in self.CMDS
 
-    def create_msg(self, cmd, msg_parts, aes_key=None):
+    def create_msg(self, cmd, msg_parts, key=None):
         if self.check_cmd(cmd):
             msg = cmd
             for part in msg_parts:
                 msg += self.SEPERATOR + str(part)
             raw_msg = msg.encode()
-            if aes_key:
-                encrypted_msg = self.decrypt_message(aes_key, raw_msg)
+            if key:
+                encrypted_msg = self.encrypt_message(raw_msg, key)
                 length_field = str(len(encrypted_msg)).zfill(self.LENGTH_FIELD_SIZE).encode()
                 return length_field + encrypted_msg
             else:
@@ -72,7 +75,9 @@ class Protocol:
         return AES.new(key, AES.MODE_CBC, iv=key[:16])  # Using the first 16 bytes of the key as IV
 
     def encrypt_message(self, message, cipher):
-        return cipher.encrypt(self.pad(message).encode())
+        print(message)
+        print(cipher)
+        return cipher.encrypt(self.pad(message))
 
     def decrypt_message(self, message, cipher):
         return self.unpad(cipher.decrypt(message))
