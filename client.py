@@ -39,9 +39,9 @@ class Client:
         is_valid, command, msg_parts = self.protocol.get_msg(self.client_socket)
         if is_valid and command == self.protocol.CMDS[4]:
             self.server_public_key = msg_parts[0]
-            self.server_public_key = self.server_public_key.strip()
             print(type(self.server_public_key))
             print(self.server_public_key)
+            print(msg_parts[0])
             self.aes_key = get_random_bytes(self.protocol.KEY_LENGTH)
             rsa_cipher = self.protocol.get_rsa_cipher(self.server_public_key)
             encrypted_aes_key = self.protocol.rsa_encrypt_message(self.aes_key, rsa_cipher)
