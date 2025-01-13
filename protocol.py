@@ -50,6 +50,8 @@ class Protocol:
 
             command = msg.split(self.SEPERATOR)[0]
             lst = msg.split(self.SEPERATOR)[1::]
+            if command == self.CMDS[4]:
+                lst[0] = lst[0][2:len(lst[0]) - 1].encode().replace(b'\\n', b'\n')
             return True, command, lst
 
         except ValueError:
@@ -73,7 +75,7 @@ class Protocol:
         return cipher.encrypt(self.pad(message).encode())
 
     def decrypt_message(self, message, cipher):
-        return self.unpad(cipher.decrypt(message)).decode()
+        return self.unpad(cipher.decrypt(message))
 
     # RSA functions
     def generate_rsa_keys(self):
@@ -93,4 +95,3 @@ class Protocol:
         rsa_key = RSA.import_key(private_key)
         rsa_cipher = PKCS1_OAEP.new(rsa_key)
         return rsa_cipher.decrypt(encrypted_message)
-
