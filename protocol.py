@@ -26,11 +26,13 @@ class Protocol:
                 msg += self.SEPERATOR + str(part)
             raw_msg = msg.encode()
             if key:
-                encrypted_msg = self.encrypt_message(raw_msg, key)
+                encrypted_msg = self.encrypt_message(raw_msg.decode(), key)
                 length_field = str(len(encrypted_msg)).zfill(self.LENGTH_FIELD_SIZE).encode()
+                print(length_field + encrypted_msg)
                 return length_field + encrypted_msg
             else:
                 length_field = str(len(raw_msg)).zfill(self.LENGTH_FIELD_SIZE).encode()
+                print(length_field + raw_msg)
                 return length_field + raw_msg
         else:
             raise FileExistsError
@@ -47,7 +49,7 @@ class Protocol:
 
             if cipher:
                 decrypted_data = self.decrypt_message(encrypted_data, cipher)
-                msg = decrypted_data.decode()
+                msg = decrypted_data
             else:
                 msg = encrypted_data.decode()
 
@@ -75,12 +77,10 @@ class Protocol:
         return AES.new(key, AES.MODE_CBC, iv=key[:16])  # Using the first 16 bytes of the key as IV
 
     def encrypt_message(self, message, cipher):
-        print(message)
-        print(cipher)
-        return cipher.encrypt(self.pad(message))
+        return cipher.encrypt(self.pad(message).encode())
 
     def decrypt_message(self, message, cipher):
-        return self.unpad(cipher.decrypt(message))
+        return self.unpad(cipher.decrypt(message)).decode()
 
     # RSA functions
     def generate_rsa_keys(self):
