@@ -25,7 +25,7 @@ class Server:
     def handle_client(self, client_socket, server_socket):
         try:
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[4], [self.PUBLIC_KEY]))
-            client_aes_decryption_key = self.PRIVATE_KEY
+            client_aes_decryption_key = self.protocol.get_rsa_cipher(self.PRIVATE_KEY)
             client_aes_encryption_key = None
             while self.run:
                 valid, commando, msg_list = self.protocol.get_msg(client_socket, client_aes_decryption_key)
