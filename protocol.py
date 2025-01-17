@@ -9,7 +9,7 @@ import hashlib
 
 class Protocol:
     def __init__(self):
-        self.SEPERATOR = "\r"
+        self.SEPERATOR = "***"
         self.CMDS = ["SIGNUP", "LOGIN", "STOP", "CHECK", "CRYPT", "GIVE_RANGE", "GIVE_MD5"]
         self.LENGTH_FIELD_SIZE = 4
         self.FOUND = "FOUND"
@@ -28,11 +28,9 @@ class Protocol:
             if key:
                 encrypted_msg = self.encrypt_message(raw_msg.decode(), key)
                 length_field = str(len(encrypted_msg)).zfill(self.LENGTH_FIELD_SIZE).encode()
-                print(length_field + encrypted_msg)
                 return length_field + encrypted_msg
             else:
                 length_field = str(len(raw_msg)).zfill(self.LENGTH_FIELD_SIZE).encode()
-                print(length_field + raw_msg)
                 return length_field + raw_msg
         else:
             raise FileExistsError
@@ -46,10 +44,11 @@ class Protocol:
             encrypted_data = sockett.recv(length)
             while len(encrypted_data) < length:
                 encrypted_data += sockett.recv(length - len(encrypted_data))
+            print(encrypted_data)
 
             if cipher:
                 decrypted_data = self.decrypt_message(encrypted_data, cipher)
-                msg = decrypted_data
+                msg = decrypted_data.decode()
             else:
                 msg = encrypted_data.decode()
 
@@ -80,7 +79,7 @@ class Protocol:
         return cipher.encrypt(self.pad(message).encode())
 
     def decrypt_message(self, message, cipher):
-        return self.unpad(cipher.decrypt(message)).decode()
+        return self.unpad(cipher.decrypt(message))
 
     # RSA functions
     def generate_rsa_keys(self):
