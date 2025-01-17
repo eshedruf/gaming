@@ -30,11 +30,10 @@ class Server:
             while self.run:
                 valid, commando, msg_list = self.protocol.get_msg(client_socket, client_aes_decryption_key)
                 if self.protocol.check_cmd(commando) and valid:
-                    print(msg_list)
-                    valid = self.handle_response(client_socket, commando, msg_list, server_socket, client_aes_encryption_key)
                     if client_aes_decryption_key == self.PRIVATE_KEY and client_aes_encryption_key is None:
                         client_aes_decryption_key = self.get_decryption_aes(client_socket)
                         client_aes_encryption_key = self.get_encryption_aes(client_socket)
+                    valid = self.handle_response(client_socket, commando, msg_list, server_socket, client_aes_encryption_key)
                     if not valid:
                         continue
 
