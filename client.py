@@ -7,6 +7,7 @@ import socket
 import time
 from window import Window
 from Crypto.Random import get_random_bytes
+import mp
 
 
 class Client:
@@ -15,6 +16,7 @@ class Client:
         Initializes the Client with the target MD5 hash and the search range.
         """
         self.protocol = protocol.Protocol()
+        self.mp = mp.Multiprocessing()
         self.server_ip = "127.0.0.1"
         self.server_port = 8818
         self.target_md5 = "g"
@@ -46,6 +48,8 @@ class Client:
             self.client_socket.send(msg)
             self.cipher_for_encryption = self.protocol.get_aes_cipher(self.aes_key)
             self.cipher_for_decryption = self.protocol.get_aes_cipher(self.aes_key)
+            print(self.cipher_for_encryption, self.cipher_for_decryption)
+
         bool = True
         age = "-1"
         while bool:
@@ -109,42 +113,8 @@ class Client:
 
         md5 = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2] # should get give md5
         self.target_md5 = str(md5[0])
+        self.mp.target_md5 = str(md5[0])
 
-    def compute_md5_and_check(self, start, end, target_hash):
-        """
-        Computes MD5 hashes for numbers in the range [start, end).
-        Returns (True, number) if target_hash is found, otherwise (False, -1).
-        """
-        for num in range(start, end):
-            num_hash = hashlib.md5(str(num).encode()).hexdigest()
-            if num_hash == target_hash:
-                return True, num
-        return False, -1
-
-    def find_md5_hash_in_range(self):
-        """
-        Splits the range across available CPU cores and checks for the target MD5 hash.
-        """
-        step = max(1, (self.range_end - self.range_start) // self.cpu_count)
-        ranges = [
-            (self.range_start + i * step, self.range_start + (i + 1) * step)
-            for i in range(self.cpu_count)
-        ]
-        # Ensure the last range ends at 'self.range_end'
-        ranges[-1] = (ranges[-1][0], self.range_end)
-
-        # Use multiprocessing pool to parallelize the work
-        with multiprocessing.Pool(self.cpu_count) as pool:
-            results = pool.starmap(
-                self.compute_md5_and_check, [(r[0], r[1], self.target_md5) for r in ranges]
-            )
-
-        # Check results for a successful match
-        for is_found, num in results:
-            if is_found:
-                self.finish = True
-                return True, num
-        return False, -1
 
     def run(self):
         """
@@ -153,7 +123,7 @@ class Client:
         print("Starting search...")
         start_time = time.time()
 
-        found, number = self.find_md5_hash_in_range()
+        found, number = self.mp.find_md5_hash_in_range()
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -170,10 +140,13 @@ class Client:
 
             data = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2] # should get give range
             start_time = time.time()
-            self.range_start = int(data[0])
-            self.range_end = int(data[1])
+            self.mp.range_start = int(data[0])
+            self.range_start = self.mp.range_start
+            self.mp.range_end = int(data[1])
+            self.range_end = self.mp.range_end
+            print(self.range_start, self.range_end)
 
-            found, number = self.find_md5_hash_in_range()
+            found, number = self.mp.find_md5_hash_in_range()
 
             end_time = time.time()
             elapsed_time = end_time - start_time
@@ -184,7 +157,7 @@ class Client:
                 print("Hash not found in the range.")
                 self.send(-1)
             print(f"Search completed in {elapsed_time:.2f} seconds.")
-        except ConnectionResetError:
+        except (ConnectionResetError, IndexError):
             print("The server got what he wanted, now go away.")
             sys.exit()
         except KeyboardInterrupt:
