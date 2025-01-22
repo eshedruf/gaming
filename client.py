@@ -37,13 +37,12 @@ class Client:
         print("client connecting to server...")
         self.client_socket.connect((self.server_ip, self.server_port))
         is_valid, command, msg_parts = self.protocol.get_msg(self.client_socket)
-        print(123)
         if is_valid and command == self.protocol.CMDS[4]:
             self.server_public_key = msg_parts[0]
             self.aes_key = get_random_bytes(self.protocol.KEY_LENGTH)
             rsa_cipher = self.protocol.get_rsa_cipher(self.server_public_key)
+            print(self.aes_key)
             msg = self.protocol.create_msg(self.protocol.CMDS[4], [self.aes_key], rsa_cipher)
-            print(msg)
             self.client_socket.send(msg)
             self.cipher_for_encryption = self.protocol.get_aes_cipher(self.aes_key)
             self.cipher_for_decryption = self.protocol.get_aes_cipher(self.aes_key)
@@ -58,7 +57,8 @@ class Client:
 
                 if age != "-1":
                     # sign up
-                    self.client_socket.send(self.protocol.create_msg("SIGNUP", [username, password, age], self.cipher_for_encryption))
+                    msg = self.protocol.create_msg("SIGNUP", [username, password, age], self.cipher_for_encryption)
+                    self.client_socket.send(msg)
                     is_valid = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[0]
                     if is_valid:
                         self.window.clear_screen()
@@ -73,7 +73,9 @@ class Client:
 
                 else:
                     # log in
-                    self.client_socket.send(self.protocol.create_msg("LOGIN", [username, password], self.cipher_for_encryption))
+                    msg = self.protocol.create_msg("LOGIN", [username, password], self.cipher_for_encryption)
+                    print(msg)
+                    self.client_socket.send(msg)
                     is_valid = self.protocol.get_msg(self.client_socket, self.cipher_for_decryption)[2]
                     if is_valid[0] == "True":
                         self.window.clear_screen()
