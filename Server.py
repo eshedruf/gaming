@@ -10,7 +10,7 @@ import hashlib
 class Server:
     def __init__(self):
         self.clients = set()  # do not duplicate the clients
-        self.list_of_proc = []  # [(username, client, cipher_encryption, cipher_decryption),...]
+        self.list_of_proc = []  # [[username, client, cipher_encryption, cipher_decryption],...]
         self.HOPS = 10 ** 7
         self.MINIMUM_RANGE = 10 ** 9
         self.MAXIMUM_RANGE = 10 ** 10
@@ -43,24 +43,24 @@ class Server:
             self.lock.release()
 
     def get_decryption_aes(self, client_socket):
-        for tuple1 in self.list_of_proc:
-            if client_socket in tuple1:
-                return tuple1[3]
+        for proc in self.list_of_proc:
+            if client_socket in proc:
+                return proc[3]
 
     def get_encryption_aes(self, client_socket):
-        for tuple1 in self.list_of_proc:
-            if client_socket in tuple1:
-                return tuple1[2]
+        for proc in self.list_of_proc:
+            if client_socket in proc:
+                return proc[2]
 
     def remove_client(self, client_socket):
-        for tuple1 in self.list_of_proc:
-            if client_socket in tuple1:
-                self.list_of_proc.remove(tuple1)
+        for proc in self.list_of_proc:
+            if client_socket in proc:
+                self.list_of_proc.remove(proc)
 
     def set_username(self, username, client_socket):
-        for tuple1 in self.list_of_proc:
-            if client_socket in tuple1:
-                tuple1[0] = username
+        for proc in self.list_of_proc:
+            if client_socket in proc:
+                proc[0] = username
 
     def handle_response(self, client_socket, command, msg_list, server_socket, aes_key=None):
         valid, message = None, None
@@ -75,7 +75,7 @@ class Server:
             print(message)
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid], aes_key))
             if valid:
-                num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
+                num = hashlib.md5(str(1_050_000_653).encode()).hexdigest()
                 msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num], aes_key)
                 client_socket.send(msg_md5)
                 self.set_username(username, client_socket)
@@ -91,7 +91,7 @@ class Server:
             print(message)
             client_socket.send(self.protocol.create_msg(self.protocol.CMDS[3], [valid], aes_key))
             if valid:
-                num = hashlib.md5(str(1_200_000_000).encode()).hexdigest()
+                num = hashlib.md5(str(1_050_000_653).encode()).hexdigest()
                 msg_md5 = self.protocol.create_msg(self.protocol.CMDS[-1], [num], aes_key)
                 client_socket.send(msg_md5)
                 self.set_username(username, client_socket)
@@ -110,8 +110,10 @@ class Server:
                 self.handle_client_range(client_socket, self.get_username_of_client(client_socket), aes_key, status)
 
         if command == self.protocol.CMDS[4]:  # crypt
-            aes_key = msg_list[0]
-            self.list_of_proc.append(("EMPTY_NAME", client_socket, self.protocol.get_aes_cipher(aes_key), self.protocol.get_aes_cipher(aes_key)))
+            aes_key = bytes(msg_list[0].decode('unicode_escape'), 'latin1')
+            print(aes_key)
+            self.list_of_proc.append(["EMPTY_NAME", client_socket, self.protocol.get_aes_cipher(aes_key), self.protocol.get_aes_cipher(aes_key)])
+            print(self.list_of_proc)
         return True
 
     def get_username_of_client(self, client_socket):
@@ -122,7 +124,6 @@ class Server:
     def handle_client_range(self, client_socket, username, aes_key, status=None):
         min_range, max_range = self.give_new_range_to_client(username, status)
         range_msg = self.protocol.create_msg(self.protocol.CMDS[-2], [min_range, max_range], aes_key)
-        print(range_msg)
         client_socket.send(range_msg)
 
     def update_client_crashing(self, username):
