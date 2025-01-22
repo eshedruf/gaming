@@ -19,8 +19,6 @@ class Server:
         self.run = True
         self.lock = threading.Lock()
         self.PRIVATE_KEY, self.PUBLIC_KEY = self.protocol.generate_rsa_keys()
-        self.cipher_for_encryption = None
-        self.cipher_for_decryption = None
 
     def handle_client(self, client_socket, server_socket):
         try:
@@ -30,10 +28,10 @@ class Server:
             while self.run:
                 valid, commando, msg_list = self.protocol.get_msg(client_socket, client_aes_decryption_key)
                 if self.protocol.check_cmd(commando) and valid:
-                    if client_aes_decryption_key == self.PRIVATE_KEY and client_aes_encryption_key is None:
+                    valid = self.handle_response(client_socket, commando, msg_list, server_socket, client_aes_encryption_key)
+                    if client_aes_encryption_key is None:
                         client_aes_decryption_key = self.get_decryption_aes(client_socket)
                         client_aes_encryption_key = self.get_encryption_aes(client_socket)
-                    valid = self.handle_response(client_socket, commando, msg_list, server_socket, client_aes_encryption_key)
                     if not valid:
                         continue
 
@@ -70,6 +68,7 @@ class Server:
             username = msg_list[0]
             password = msg_list[1]
             age = msg_list[2]
+            print(username, password, age)
             self.lock.acquire()
             valid, message = self.client_sign_up_if_possible(username, password, age)
             self.lock.release()
@@ -85,6 +84,7 @@ class Server:
         if command == self.protocol.CMDS[1]:  # login
             username = msg_list[0]
             password = msg_list[1]
+            print(username, password)
             self.lock.acquire()
             valid, message = self.client_log_in_if_possible(username, password)
             self.lock.release()
@@ -110,11 +110,8 @@ class Server:
                 self.handle_client_range(client_socket, self.get_username_of_client(client_socket), aes_key, status)
 
         if command == self.protocol.CMDS[4]:  # crypt
-            aes_key_encrypted_by_public = msg_list[0]
-            aes_key = self.protocol.rsa_decrypt_message(aes_key_encrypted_by_public, self.PRIVATE_KEY)
-            self.cipher_for_encryption = self.protocol.get_aes_cipher(aes_key)
-            self.cipher_for_decryption = self.protocol.get_aes_cipher(aes_key)
-            self.list_of_proc.append(("EMPTY_NAME", client_socket, self.cipher_for_encryption, self.cipher_for_decryption))
+            aes_key = msg_list[0]
+            self.list_of_proc.append(("EMPTY_NAME", client_socket, self.protocol.get_aes_cipher(aes_key), self.protocol.get_aes_cipher(aes_key)))
         return True
 
     def get_username_of_client(self, client_socket):
