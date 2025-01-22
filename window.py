@@ -61,6 +61,8 @@ class Window:
         self.age_entry = tk.Entry(self.connection_window)
         self.age_entry.pack(pady=5)
 
+        self.error_message = None
+
         # Add a Submit Button for Sign In
         submit_button = tk.Button(self.connection_window, text="Submit", command=self.submit)
         submit_button.pack(pady=20)
