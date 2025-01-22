@@ -1,9 +1,6 @@
 import socket
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes
 import hashlib
 
 
@@ -36,32 +33,24 @@ class Protocol:
             raise FileExistsError
 
     def get_msg(self, sockett, cipher=None):
-        try:
-            length_field = sockett.recv(self.LENGTH_FIELD_SIZE)
-            if not length_field:
-                return False, "", ""
-            length = int(length_field.decode())
-            encrypted_data = sockett.recv(length)
-            while len(encrypted_data) < length:
-                encrypted_data += sockett.recv(length - len(encrypted_data))
-            print(encrypted_data)
-
-            if cipher:
-                decrypted_data = self.decrypt_message(encrypted_data, cipher)
-                msg = decrypted_data.decode()
-            else:
-                msg = encrypted_data.decode()
-
-            command = msg.split(self.SEPERATOR)[0]
-            lst = msg.split(self.SEPERATOR)[1::]
-            if command == self.CMDS[4]:
-                lst[0] = lst[0][2:len(lst[0]) - 1].encode().replace(b'\\n', b'\n')
-            return True, command, lst
-
-        except ValueError:
+        length_field = sockett.recv(self.LENGTH_FIELD_SIZE)
+        if not length_field:
             return False, "", ""
-        except UnicodeDecodeError:
-            return False, "", ""
+        length = int(length_field.decode())
+        encrypted_data = sockett.recv(length)
+        while len(encrypted_data) < length:
+            encrypted_data += sockett.recv(length - len(encrypted_data))
+        if cipher:
+            decrypted_data = self.decrypt_message(encrypted_data, cipher)
+            msg = decrypted_data.decode()
+        else:
+            msg = encrypted_data.decode()
+
+        command = msg.split(self.SEPERATOR)[0]
+        lst = msg.split(self.SEPERATOR)[1::]
+        if command == self.CMDS[4]:
+            lst[0] = lst[0][2:len(lst[0]) - 1].encode().replace(b'\\n', b'\n')
+        return True, command, lst
 
     def pad(self, s):
         padding_length = 16 - len(s) % 16
