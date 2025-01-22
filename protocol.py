@@ -49,7 +49,8 @@ class Protocol:
         command = msg.split(self.SEPERATOR)[0]
         lst = msg.split(self.SEPERATOR)[1::]
         if command == self.CMDS[4]:
-            lst[0] = lst[0][2:len(lst[0]) - 1].encode().replace(b'\\n', b'\n')
+            lst[0] = lst[0][2:len(lst[0]) - 1].encode()
+            lst[0] = lst[0].replace(b'\\n', b'\n')
         return True, command, lst
 
     def pad(self, s):
